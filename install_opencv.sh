@@ -18,5 +18,6 @@ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 sudo python3 get-pip.py
 rm get-pip.py
 pip install imutils
+pip install imageio[ffmpeg]
 sudo apt-get install python3-opencv
 sudo apt-get install git
