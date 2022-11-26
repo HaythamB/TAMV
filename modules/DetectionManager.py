@@ -533,7 +533,7 @@ class DetectionManager(QObject):
         # process keypoint
         if(keypoints is not None and len(keypoints) >= 1):
             # create center object
-            (x,y) = np.around(keypoints[0].pt)
+            x,y = np.around(keypoints[0].pt)
             x,y = int(x), int(y)
             center = (x,y)
             # create radius object
