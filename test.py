@@ -2,9 +2,6 @@
 import cv2
 import sys
 
-print("Python version")
-print (sys.version)
-print("Version info.")
-print (sys.version_info)
-print()
-print("CV2 version: ", cv2.__version__)
+print("Python version:", sys.version)
+print("Version info:", sys.version_info)
+print("CV2 version:", cv2.__version__)
