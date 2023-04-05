@@ -64,7 +64,7 @@ class printerAPI:
     #
     # Raises:
     #   - UnknownController: if fails to connect
-    def __init__(self, baseURL, nickname='Default'):
+    def __init__(self, baseURL, nickname='Default', password='none'):
         _logger.debug('Starting API..')
 
         self.session = requests.Session()
