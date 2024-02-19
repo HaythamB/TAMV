@@ -220,10 +220,28 @@ class printerAPI:
 
                 # Setup tool definitions
                 toolData = j['tools']
+                toolCounter = 0
                 for inputTool in toolData:
+                    # attempt to read tool number from config
+                    # redirect exception to a default toolnumber based on the current index in the array
+                    try:
+                        toolNumber = inputTool['number']
+                    except Exception as noNumber:
+                        toolNumber = str(toolCounter)
+                    
+                    # attempt to read tool name from config
+                    # redirect exception to a default toolname in the format Tx (where x is the tool number)
+                    try:
+                        toolName = inputTool['name']
+                    except Exception as noname:
+                        toolName = "T" + toolNumber
+                    
+                    # increment current tool number
+                    toolCounter = toolCounter + 1
+
                     tempTool = Tool(
-                        number = inputTool['number'],
-                        name = inputTool['name'],
+                        number = toolNumber,
+                        name = toolName,
                         offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z':inputTool['offsets'][2]})
                     self._tools.append(tempTool)
                 
