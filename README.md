@@ -41,7 +41,7 @@ _[back to top](#table-of-contents)_
 
 _[back to top](#table-of-contents)_
 # What do I need to run TAMV?
-Please visit [the TAMV page on the Jubilee Wiki)[https://jubilee3d.com/index.php?title=TAMV] for isntallation instructions.
+Please visit [the TAMV page on the Jubilee Wiki](https://jubilee3d.com/index.php?title=TAMV) for isntallation instructions.
 
 
 _[back to top](#table-of-contents)_
