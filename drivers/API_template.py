@@ -56,7 +56,7 @@ class printerAPI:
     # 
     # Raises: 
     #   - UnknownController: if fails to connect
-    def __init__( self, baseURL, nickname='Default' ):
+    def __init__( self, baseURL, nickname='Default', password='reprap' ):
         _logger.debug('Starting API..')
 
         # Here are the required class attributes. These get saved to settings.json
