@@ -227,13 +227,17 @@ class DetectionManager(QObject):
                 elif(self.__enableDetection is True):
                     if(self.__endstopDetectionActive is True):
                         if(self.__endstopAutomatedDetectionActive is False):
+                            _logger.debug('==> Analyze endstop')
                             self.analyzeEndstopFrame()
                         else:
+                            _logger.debug('==> Burst endstop')
                             self.burstEndstopDetection()
                     elif(self.__nozzleDetectionActive is True):
                         if(self.__nozzleAutoDetectionActive is False):
+                            _logger.debug('==> Analyze nozzle')
                             self.analyzeNozzleFrame()
                         else:
+                            _logger.debug('==> burst nozzle')
                             self.burstNozzleDetection()
                 else:
                     pass
@@ -428,11 +432,13 @@ class DetectionManager(QObject):
 
     ##### Nozzle detection
     def analyzeNozzleFrame(self):
+        _logger.debug('====> analyzeNozzleFrame')
         detectionCount = 0
         self.uv = [None, None]
         average_location=[0,0]
         retries = 0
         self.__uv = [None,None]
+        _logger.debug('====> nozzleDetection')
         self.__uv, self.frame = self.nozzleDetection()
         # draw crosshair
         keypointRadius = 17
@@ -489,14 +495,19 @@ class DetectionManager(QObject):
             self.__uv = None
 
     def nozzleDetection(self):
+        _logger.debug('======> nozzleDetection started')
         # working frame object
         nozzleDetectFrame = copy.deepcopy(self.frame)
+        _logger.debug('======> deepcopy done')
         # return value for keypoints
         keypoints = None
         center = (None, None)
         # check which algorithm worked previously
         if(self.__algorithm is None):
+            _logger.debug('======> algorithm is none')
+            _logger.debug('======> preprocess 0')
             preprocessorImage0 = self.preprocessImage(frameInput=nozzleDetectFrame, algorithm=0)
+            _logger.debug('======> preprocess 1')
             preprocessorImage1 = self.preprocessImage(frameInput=nozzleDetectFrame, algorithm=1)
 
             # apply combo 1 (standard detector, preprocessor 0)
@@ -567,6 +578,7 @@ class DetectionManager(QObject):
             nozzleDetectFrame = cv2.line(nozzleDetectFrame, (0,240), (640,240), (0,0,0), 2)
             nozzleDetectFrame = cv2.line(nozzleDetectFrame, (320,0), (320,480), (255,255,255), 1)
             nozzleDetectFrame = cv2.line(nozzleDetectFrame, (0,240), (640,240), (255,255,255), 1)
+        _logger.debug('==> nozzleDetection ending')
         return(center, nozzleDetectFrame)
 
     @pyqtSlot(bool)
@@ -600,19 +612,29 @@ class DetectionManager(QObject):
     # Image detection preprocessors
     def preprocessImage(self, frameInput, algorithm=0):
         try:
+            _logger.debug('========> adjustgamma')
             outputFrame = self.adjust_gamma(image=frameInput, gamma=1.2)
-        except: outputFrame = copy.deepcopy(frameInput)
+        except: 
+            _logger.debug('========> adjustgamma excpetion')
+            outputFrame = copy.deepcopy(frameInput)
+        _logger.debug('========> adjustgamma done')
         if(algorithm == 0):
+            _logger.debug('========> cvtcolor')
             yuv = cv2.cvtColor(outputFrame, cv2.COLOR_BGR2YUV)
+            _logger.debug('========> split')
             yuvPlanes = cv2.split(yuv)
-            yuvPlanes[0] = cv2.GaussianBlur(yuvPlanes[0],(7,7),6)
+            _logger.debug('========> blur')
+            yuvPlanes[0] = cv2.GaussianBlur(yuvPlanes[0],(3,3),6)
+            _logger.debug('========> adaptiveThreshold')
             yuvPlanes[0] = cv2.adaptiveThreshold(yuvPlanes[0],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,35,1)
+            _logger.debug('========> cvtcolor gray')
             outputFrame = cv2.cvtColor(yuvPlanes[0],cv2.COLOR_GRAY2BGR)
         elif(algorithm == 1):
             outputFrame = cv2.cvtColor(outputFrame, cv2.COLOR_BGR2GRAY )
             thr_val, outputFrame = cv2.threshold(outputFrame, 127, 255, cv2.THRESH_BINARY|cv2.THRESH_TRIANGLE )
             outputFrame = cv2.GaussianBlur( outputFrame, (7,7), 6 )
             outputFrame = cv2.cvtColor( outputFrame, cv2.COLOR_GRAY2BGR )
+        _logger.debug('========> returning frame')
         return(outputFrame)
 
     ##### Image adjustment properties
