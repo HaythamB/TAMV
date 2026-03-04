@@ -151,10 +151,9 @@ class printerAPI:
 
         try:
             # ---------------------------------------------------------------
-            # PATH 1: Duet 2 / RRF legacy rr_ API
-            # ALWAYS call rr_connect regardless of password.
-            # RRF 3.6+ requires this even with the default 'reprap' password,
-            # and returns a sessionKey that must be used for all subsequent requests.
+            # PATH 1: Duet 2 / RRF 3.5.x legacy rr_ API  (apiLevel 1)
+            # PATH 2: Duet 3 standalone RRF 3.6+ rr_model API (apiLevel 2)
+            # Both start with rr_connect - apiLevel in response tells us which path to take
             # ---------------------------------------------------------------
             _logger.debug('Attempting rr_connect..')
             URL = (f'{self._base_url}' + '/rr_connect?password=' + self._password)
@@ -172,58 +171,111 @@ class printerAPI:
                 _logger.debug('rr_connect returned err != 0, trying Duet 3 SBC path..')
                 raise DuetSBCHandler
 
-            # RRF 3.6+ introduced apiLevel 2 and sessionKey requirement.
-            # Extract and apply sessionKey to all subsequent requests if present.
+            # apiLevel tells us which status API to use
             api_level = connect_obj.get('apiLevel', 1)
+            _logger.debug(f'rr_connect succeeded, apiLevel={api_level}')
+
             if api_level >= 2:
+                # ---------------------------------------------------------------
+                # PATH 2: Duet 3 standalone RRF 3.6+ - uses rr_model, requires sessionKey
+                # ---------------------------------------------------------------
                 session_key = connect_obj.get('sessionKey')
                 if session_key is not None:
                     self.session.headers.update({'X-Session-Key': str(session_key)})
-                    _logger.debug(f'RRF apiLevel {api_level} detected - sessionKey {session_key} applied to session headers')
+                    _logger.debug(f'apiLevel {api_level} - sessionKey {session_key} applied')
 
-            # Fetch full machine status
-            URL = (f'{self._base_url}' + '/rr_status?type=2')
-            r = self.session.get(URL, timeout=(self._requestTimeout, self._responseTimeout))
-            if r.ok:
-                j = json.loads(r.text)
-            else:
-                raise DuetSBCHandler
+                # Fetch machine name
+                URL = (f'{self._base_url}' + '/rr_model?key=network')
+                r = self.session.get(URL, timeout=(self._requestTimeout, self._responseTimeout))
+                if not r.ok:
+                    raise Exception('Failed to fetch rr_model network data')
+                network_obj = json.loads(r.text)
+                self._name = network_obj['result']['name']
 
-            # Send reply to clear buffer
-            replyURL = (f'{self._base_url}' + '/rr_reply')
-            r = self.session.get(replyURL, timeout=(self._requestTimeout, self._responseTimeout))
+                # Fetch boards (firmware info)
+                URL = (f'{self._base_url}' + '/rr_model?key=boards')
+                r = self.session.get(URL, timeout=(self._requestTimeout, self._responseTimeout))
+                if not r.ok:
+                    raise Exception('Failed to fetch rr_model boards data')
+                boards_obj = json.loads(r.text)
+                firmwareName = boards_obj['result'][0]['firmwareName']
+                self._firmwareVersion = boards_obj['result'][0]['firmwareVersion']
 
-            # Get machine name
-            self._name = j['name']
+                # Fetch tools
+                URL = (f'{self._base_url}' + '/rr_model?key=tools')
+                r = self.session.get(URL, timeout=(self._requestTimeout, self._responseTimeout))
+                if not r.ok:
+                    raise Exception('Failed to fetch rr_model tools data')
+                tools_obj = json.loads(r.text)
+                toolData = tools_obj['result']
 
-            # Setup tool definitions
-            toolData = j['tools']
-            for inputTool in toolData:
-                tempTool = Tool(
-                    number=inputTool['number'],
-                    name=inputTool['name'],
-                    offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z': inputTool['offsets'][2]})
-                self._tools.append(tempTool)
-                _logger.debug('Added tool: ' + str(tempTool.getJSON()))
+                for inputTool in toolData:
+                    try:
+                        toolNumber = inputTool['number']
+                    except Exception:
+                        toolNumber = 0
+                    try:
+                        toolName = inputTool['name']
+                    except Exception:
+                        toolName = "T" + str(toolNumber)
+                    tempTool = Tool(
+                        number=toolNumber,
+                        name=toolName,
+                        offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z': inputTool['offsets'][2]})
+                    self._tools.append(tempTool)
+                    _logger.debug('Added tool: ' + str(tempTool.getJSON()))
 
-            # Check firmware version
-            firmwareName = j['firmwareName']
-            boardVersion = firmwareName[24]
-            self._firmwareVersion = j['firmwareVersion']
-
-            if self._firmwareVersion[0] == "2":
-                self._rrf2 = True
-                self.pt = 2
-            else:
                 self._rrf2 = False
-                self.pt = 2
+                self.pt = 3  # treat as pt=3 since object model structure matches Duet 3 SBC
+                _logger.info('  .. connected to ' + firmwareName + ' - V' + self._firmwareVersion + ' (RRF 3.6+ standalone)..')
+                return
 
-            _logger.info('  .. connected to ' + firmwareName + ' - V' + self._firmwareVersion + '..')
-            return
+            else:
+                # ---------------------------------------------------------------
+                # PATH 1: Duet 2 / RRF 3.5.x - uses rr_status?type=2
+                # ---------------------------------------------------------------
+                URL = (f'{self._base_url}' + '/rr_status?type=2')
+                r = self.session.get(URL, timeout=(self._requestTimeout, self._responseTimeout))
+                if r.ok:
+                    j = json.loads(r.text)
+                else:
+                    raise DuetSBCHandler
+
+                # Send reply to clear buffer
+                replyURL = (f'{self._base_url}' + '/rr_reply')
+                r = self.session.get(replyURL, timeout=(self._requestTimeout, self._responseTimeout))
+
+                # Get machine name
+                self._name = j['name']
+
+                # Setup tool definitions
+                toolData = j['tools']
+                for inputTool in toolData:
+                    tempTool = Tool(
+                        number=inputTool['number'],
+                        name=inputTool['name'],
+                        offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z': inputTool['offsets'][2]})
+                    self._tools.append(tempTool)
+                    _logger.debug('Added tool: ' + str(tempTool.getJSON()))
+
+                # Check firmware version
+                firmwareName = j['firmwareName']
+                boardVersion = firmwareName[24]
+                self._firmwareVersion = j['firmwareVersion']
+
+                if self._firmwareVersion[0] == "2":
+                    self._rrf2 = True
+                    self.pt = 2
+                else:
+                    self._rrf2 = False
+                    self.pt = 2
+
+                _logger.info('  .. connected to ' + firmwareName + ' - V' + self._firmwareVersion + '..')
+                return
 
         except DuetSBCHandler as sbc:
             # ---------------------------------------------------------------
-            # PATH 2: Duet 3 SBC / DSF API (/machine/ endpoints)
+            # PATH 3: Duet 3 SBC / DSF API (/machine/ endpoints)
             # ---------------------------------------------------------------
             try:
                 _logger.debug('Trying to connect to Duet 3 SBC board..')
